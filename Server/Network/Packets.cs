@@ -201,17 +201,30 @@ namespace Server.Network
 		}
 	}
 
+	public enum TradeFlag : byte
+	{
+		Display = 0x0,
+		Close = 0x1,
+		Update = 0x2,
+		UpdateGold = 0x3,
+		UpdateLedger = 0x4
+	}
+
 	public sealed class UpdateSecureTrade : Packet
 	{
 		public UpdateSecureTrade(Container cont, bool first, bool second)
+			: this(cont, TradeFlag.Update, first ? 1 : 0, second ? 1 : 0)
+		{ }
+
+		public UpdateSecureTrade(Container cont, TradeFlag flag, int first, int second)
 			: base(0x6F)
 		{
-			EnsureCapacity(8);
+			EnsureCapacity(17);
 
-			m_Stream.Write((byte)2); // Update
+			m_Stream.Write((byte)flag);
 			m_Stream.Write(cont.Serial);
-			m_Stream.Write((first ? 1 : 0));
-			m_Stream.Write((second ? 1 : 0));
+			m_Stream.Write(first);
+			m_Stream.Write(second);
 		}
 	}
 
@@ -400,16 +413,16 @@ namespace Server.Network
 
 	public sealed class VendorSellList : Packet
 	{
-		public VendorSellList(Mobile shopkeeper, Hashtable table)
+		public VendorSellList(Mobile shopkeeper, ICollection<SellItemState> sis)
 			: base(0x9E)
 		{
 			EnsureCapacity(256);
 
 			m_Stream.Write(shopkeeper.Serial);
 
-			m_Stream.Write((ushort)table.Count);
+			m_Stream.Write((ushort)sis.Count);
 
-			foreach (SellItemState state in table.Values)
+			foreach (SellItemState state in sis)
 			{
 				m_Stream.Write(state.Item.Serial);
 				m_Stream.Write((ushort)state.Item.ItemID);
@@ -542,7 +555,7 @@ namespace Server.Network
 			var attrs = info.Attributes;
 
 			EnsureCapacity(
-				17 + (info.Crafter == null ? 0 : 6 + info.Crafter.Name == null ? 0 : info.Crafter.Name.Length) +
+				17 + (info.Crafter == null ? 0 : 6 + info.Crafter.TitleName == null ? 0 : info.Crafter.TitleName.Length) +
 				(info.Unidentified ? 4 : 0) + (attrs.Length * 6));
 
 			m_Stream.Write((short)0x10);
@@ -552,7 +565,7 @@ namespace Server.Network
 
 			if (info.Crafter != null)
 			{
-				string name = info.Crafter.Name;
+				string name = info.Crafter.TitleName;
 
 				m_Stream.Write(-3);
 
@@ -3142,7 +3155,7 @@ m_Stream.Write( (int) renderMode );
 		public SupportedFeatures(NetState ns)
 			: base(0xB9, ns.ExtendedSupportedFeatures ? 5 : 3)
 		{
-			FeatureFlags flags = ExpansionInfo.CurrentExpansion.SupportedFeatures;
+			FeatureFlags flags = ExpansionInfo.CoreExpansion.SupportedFeatures;
 
 			flags |= m_AdditionalFlags;
 
@@ -4525,7 +4538,7 @@ m_Stream.Write( (int) renderMode );
 				m_Stream.Write(0);
 			}
 
-			CharacterListFlags flags = ExpansionInfo.CurrentExpansion.CharacterListFlags;
+			CharacterListFlags flags = ExpansionInfo.CoreExpansion.CharacterListFlags;
 
 			if (count > 6)
 			{
@@ -4629,7 +4642,7 @@ m_Stream.Write( (int) renderMode );
 				m_Stream.WriteAsciiFixed(ci.Building, 31);
 			}
 
-			CharacterListFlags flags = ExpansionInfo.CurrentExpansion.CharacterListFlags;
+			CharacterListFlags flags = ExpansionInfo.CoreExpansion.CharacterListFlags;
 
 			if (count > 6)
 			{

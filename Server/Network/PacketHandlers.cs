@@ -118,7 +118,7 @@ namespace Server.Network
 			Register(0xB6, 9, true, ObjectHelpRequest);
 			Register(0xB8, 0, true, ProfileReq);
 			Register(0xBB, 9, false, AccountID);
-			Register(0xBD, 0, false, ClientVersion);
+			Register(0xBD, 0, true, ClientVersion);
 			Register(0xBE, 0, true, AssistVersion);
 			Register(0xBF, 0, true, ExtendedCommand);
 			Register(0xC2, 0, true, UnicodePromptResponse);
@@ -354,45 +354,84 @@ namespace Server.Network
 			switch (pvSrc.ReadByte())
 			{
 				case 1: // Cancel
+				{
+					Serial serial = pvSrc.ReadInt32();
+
+					SecureTradeContainer cont = World.FindItem(serial) as SecureTradeContainer;
+
+					if (cont != null)
 					{
-						Serial serial = pvSrc.ReadInt32();
+						SecureTrade trade = cont.Trade;
 
-						SecureTradeContainer cont = World.FindItem(serial) as SecureTradeContainer;
-
-						if (cont != null && cont.Trade != null &&
-							(cont.Trade.From.Mobile == state.Mobile || cont.Trade.To.Mobile == state.Mobile))
+						if (trade != null)
 						{
-							cont.Trade.Cancel();
+							if (trade.From.Mobile == state.Mobile || trade.To.Mobile == state.Mobile)
+							{
+								trade.Cancel();
+							}
 						}
-
-						break;
 					}
+				}
+					break;
 				case 2: // Check
+				{
+					Serial serial = pvSrc.ReadInt32();
+
+					SecureTradeContainer cont = World.FindItem(serial) as SecureTradeContainer;
+
+					if (cont != null)
 					{
-						Serial serial = pvSrc.ReadInt32();
+						SecureTrade trade = cont.Trade;
 
-						SecureTradeContainer cont = World.FindItem(serial) as SecureTradeContainer;
+						bool value = pvSrc.ReadInt32() != 0;
 
-						if (cont != null)
+						if (trade != null)
 						{
-							SecureTrade trade = cont.Trade;
-
-							bool value = (pvSrc.ReadInt32() != 0);
-
-							if (trade != null && trade.From.Mobile == state.Mobile)
+							if (trade.From.Mobile == state.Mobile)
 							{
 								trade.From.Accepted = value;
 								trade.Update();
 							}
-							else if (trade != null && trade.To.Mobile == state.Mobile)
+							else if (trade.To.Mobile == state.Mobile)
 							{
 								trade.To.Accepted = value;
 								trade.Update();
 							}
 						}
-
-						break;
 					}
+				}
+					break;
+				case 3: // Update Gold
+				{
+					Serial serial = pvSrc.ReadInt32();
+
+					SecureTradeContainer cont = World.FindItem(serial) as SecureTradeContainer;
+
+					if (cont != null)
+					{
+						int gold = pvSrc.ReadInt32();
+						int plat = pvSrc.ReadInt32();
+
+						SecureTrade trade = cont.Trade;
+
+						if (trade != null)
+						{
+							if (trade.From.Mobile == state.Mobile)
+							{
+								trade.From.Gold = gold;
+								trade.From.Plat = plat;
+								trade.UpdateFromCurrency();
+							}
+							else if (trade.To.Mobile == state.Mobile)
+							{
+								trade.To.Gold = gold;
+								trade.To.Plat = plat;
+								trade.UpdateToCurrency();
+							}
+						}
+					}
+				}
+					break;
 			}
 		}
 
@@ -1306,7 +1345,7 @@ namespace Server.Network
 				{
 					int switchCount = pvSrc.ReadInt32();
 
-					if (switchCount < 0 || switchCount > gump._Switches)
+					if (switchCount < 0 || switchCount > gump.m_Switches)
 					{
 						Utility.PushColor(ConsoleColor.DarkRed);
 						state.WriteConsole("Invalid gump response, disconnecting...");
@@ -1324,7 +1363,7 @@ namespace Server.Network
 
 					int textCount = pvSrc.ReadInt32();
 
-					if (textCount < 0 || textCount > gump._TextEntries)
+					if (textCount < 0 || textCount > gump.m_TextEntries)
 					{
 						Utility.PushColor(ConsoleColor.DarkRed);
 						state.WriteConsole("Invalid gump response, disconnecting...");

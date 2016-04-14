@@ -42,7 +42,11 @@ namespace Server.Mobiles
 		AI_NecroMage,
 		AI_OrcScout,
 		AI_Spellbinder,
-		AI_OmniAI
+		AI_OmniAI,
+        AI_Samurai,
+        AI_Ninja,
+        AI_Spellweaving,
+        AI_Mystic
 	}
 
 	public enum ActionType
@@ -575,8 +579,9 @@ namespace Server.Mobiles
 
 									if (m_Mobile.CheckControlChance(e.Mobile))
 									{
-										m_Mobile.ControlTarget = null;
+										
 										m_Mobile.ControlOrder = OrderType.Guard;
+                                        m_Mobile.ControlTarget = null;
 									}
 									return;
 								}
@@ -701,8 +706,9 @@ namespace Server.Mobiles
 
 									if (!m_Mobile.IsDeadPet && WasNamed(speech) && m_Mobile.CheckControlChance(e.Mobile))
 									{
-										m_Mobile.ControlTarget = null;
-										m_Mobile.ControlOrder = OrderType.Guard;
+                                        m_Mobile.ControlOrder = OrderType.Guard;
+                                        m_Mobile.ControlTarget = null;
+										
 									}
 
 									return;
@@ -1167,6 +1173,7 @@ namespace Server.Mobiles
 					m_Mobile.PlaySound(m_Mobile.GetIdleSound());
 					m_Mobile.Warmode = true;
 					m_Mobile.Combatant = null;
+                    m_Mobile.ControlTarget = null;
 					string petname = String.Format("{0}", m_Mobile.Name);
 					m_Mobile.ControlMaster.SendLocalizedMessage(1049671, petname); //~1_PETNAME~ is now guarding you.
 					break;
@@ -2830,7 +2837,7 @@ namespace Server.Mobiles
 					}
 
 					if (acqType == FightMode.Aggressor || acqType == FightMode.Evil ||
-						(m is BaseCreature) && ((BaseCreature)m).Summoned)
+						(m is BaseCreature) && ((BaseCreature)m).Summoned || acqType == FightMode.Good)
 					{
 						bool bValid = IsHostile(m);
 
@@ -2851,6 +2858,18 @@ namespace Server.Mobiles
 								bValid = (m.Karma < 0);
 							}
 						}
+
+                        if (acqType == FightMode.Good && !bValid)
+                        {
+                            if (m is BaseCreature && ((BaseCreature)m).Controlled && ((BaseCreature)m).ControlMaster != null)
+                            {
+                                bValid = (((BaseCreature)m).ControlMaster.Karma > 0);
+                            }
+                            else
+                            {
+                                bValid = (m.Karma > 0);
+                            }
+                        }
 
 						if (!bValid)
 						{

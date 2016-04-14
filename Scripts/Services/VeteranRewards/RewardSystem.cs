@@ -13,10 +13,16 @@ namespace Server.Engines.VeteranRewards
 
     public class RewardSystem
     {
-        public static bool Enabled = true;// change to true to enable vet rewards
-        public static bool SkillCapRewards = true;// assuming vet rewards are enabled, should total skill cap bonuses be awarded? (720 skills total at 4th level)
-        public static TimeSpan RewardInterval = TimeSpan.FromDays(30.0);
-        private static RewardCategory[] m_Categories;
+		public static bool Enabled = Config.Get("VetRewards.Enabled", true);
+        public static bool SkillCapRewards = Config.Get("VetRewards.SkillCapRewards", true);
+        public static int SkillCap = Config.Get("PlayerCaps.TotalSkillCap", 7000);
+        public static int SkillCapBonus = Config.Get("VetRewards.SkillCapBonus", 200);
+        public static int SkillCapBonusLevels = Config.Get("VetRewards.SkillCapBonusLevels", 4);
+        public static float SkillCapBonusIncrement = SkillCapBonus / SkillCapBonusLevels;
+        public static TimeSpan RewardInterval = Config.Get("VetRewards.RewardInterval", TimeSpan.FromDays(30.0d));
+		public static int StartingLevel = Config.Get("VetRewards.StartingLevel", 0);
+
+		private static RewardCategory[] m_Categories;
         private static RewardList[] m_Lists;
         public static RewardCategory[] Categories
         {
@@ -80,9 +86,10 @@ namespace Server.Engines.VeteranRewards
                 return false;
             }
 
-            TimeSpan totalTime = (DateTime.UtcNow - acct.Created);
+			TimeSpan totalTime = (DateTime.UtcNow - acct.Created) + TimeSpan.FromDays(RewardInterval.TotalDays * StartingLevel);
 
-            ts = (list.Age - totalTime);
+			ts = (list.Age - totalTime);
+
 
             if (ts <= TimeSpan.Zero)
                 return true;
@@ -108,6 +115,8 @@ namespace Server.Engines.VeteranRewards
 
             if (level < 0)
                 level = 0;
+
+			level += StartingLevel;
 
             return level;
         }
@@ -350,6 +359,7 @@ namespace Server.Engines.VeteranRewards
                     new RewardEntry(monsterStatues, 1006035, typeof(MonsterStatuette), MonsterStatuetteType.Ratman),
                     new RewardEntry(monsterStatues, 1006036, typeof(MonsterStatuette), MonsterStatuetteType.Skeleton),
                     new RewardEntry(monsterStatues, 1006037, typeof(MonsterStatuette), MonsterStatuetteType.Troll),
+                    new RewardEntry(etherealSteeds, 1006019, typeof(EtherealHorse)),
                     new RewardEntry(houseAddOns, 1062692, typeof(ContestMiniHouseDeed), Expansion.AOS, MiniHouseType.MalasMountainPass),
                     new RewardEntry(houseAddOns, 1072216, typeof(ContestMiniHouseDeed), Expansion.SE, MiniHouseType.ChurchAtNight),
                     new RewardEntry(miscellaneous, 1076155, typeof(RedSoulstone), Expansion.ML),
@@ -380,8 +390,8 @@ namespace Server.Engines.VeteranRewards
                     new RewardEntry(monsterStatues, 1006039, typeof(MonsterStatuette), MonsterStatuetteType.Zombie),
                     new RewardEntry(monsterStatues, 1006040, typeof(MonsterStatuette), MonsterStatuetteType.Llama),
                     new RewardEntry(etherealSteeds, 1006019, typeof(EtherealHorse)),
-                    new RewardEntry(etherealSteeds, 1006050, typeof(EtherealOstard)),
                     new RewardEntry(etherealSteeds, 1006051, typeof(EtherealLlama)),
+                    new RewardEntry(etherealSteeds, 1006050, typeof(EtherealOstard)),
                     new RewardEntry(houseAddOns, 1080407, typeof(PottedCactusDeed), Expansion.ML)
                 }),
                 new RewardList(RewardInterval, 4, new RewardEntry[]
@@ -486,17 +496,30 @@ namespace Server.Engines.VeteranRewards
 
             ComputeRewardInfo(e.Mobile, out cur, out max, out level);
 
-            if (e.Mobile.SkillsCap == 7000 || e.Mobile.SkillsCap == 7050 || e.Mobile.SkillsCap == 7100 || e.Mobile.SkillsCap == 7150 || e.Mobile.SkillsCap == 7200)
-            {
-                if (level > 4)
-                    level = 4;
-                else if (level < 0)
-                    level = 0;
+            if (level > SkillCapBonusLevels)
+                level = SkillCapBonusLevels;
+            else if (level < 0)
+                level = 0;
 
+            if (!Core.SA)
+            {
                 if (SkillCapRewards)
-                    e.Mobile.SkillsCap = 7000 + (level * 50);
+                {
+                    int newLevel = SkillCap + (int)((float)level * SkillCapBonusIncrement);
+                    if (newLevel > SkillCap + SkillCapBonus)
+                    {
+                        newLevel = SkillCap + SkillCapBonus;
+                    }
+                    e.Mobile.SkillsCap = newLevel;
+                }
                 else
-                    e.Mobile.SkillsCap = 7000;
+                {
+                    e.Mobile.SkillsCap = SkillCap;
+                }
+            }
+            else
+            {
+                e.Mobile.SkillsCap = SkillCap + SkillCapBonus;
             }
 
             if (Core.ML && e.Mobile is PlayerMobile && !((PlayerMobile)e.Mobile).HasStatReward && HasHalfLevel(e.Mobile))

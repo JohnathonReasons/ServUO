@@ -13,6 +13,7 @@ using Server.Engines.Plants;
 using Server.Factions;
 using Server.Items;
 using Server.Mobiles;
+using Server.Engines.Quests;
 #endregion
 
 namespace Server.Engines.Craft
@@ -40,7 +41,7 @@ namespace Server.Engines.Craft
 	public class CraftItem
 	{
 		#region Mondain's Legacy
-		public static void Initialize()
+		/*public static void Initialize()
 		{
 			CraftSystem sys;
 
@@ -56,12 +57,13 @@ namespace Server.Engines.Craft
 			sys = DefTailoring.CraftSystem;
 			sys = DefTinkering.CraftSystem;
 			sys = DefBasketweaving.CraftSystem;
-		}
+		}*/
 		#endregion
 
 		private readonly CraftResCol m_arCraftRes;
 		private readonly CraftSkillCol m_arCraftSkill;
 		private readonly Type m_Type;
+        public double MinSkillOffset { get; set; }
 
 		private readonly string m_GroupNameString;
 		private readonly int m_GroupNameNumber;
@@ -140,11 +142,13 @@ namespace Server.Engines.Craft
 				{
 					itemId = 0x2DEA;
 				}
-				else if (type == typeof(ElvenWashBasinSouthDeed))
+				else if (type == typeof(ElvenWashBasinSouthDeed) ||
+					type == typeof(ElvenWashBasinSouthAddonWithDrawer))
 				{
 					itemId = 0x2D0B;
 				}
-				else if (type == typeof(ElvenWashBasinEastDeed))
+				else if (type == typeof(ElvenWashBasinEastDeed) ||
+					type == typeof(ElvenWashBasinEastAddonWithDrawer))
 				{
 					itemId = 0x2D0C;
 				}
@@ -233,6 +237,7 @@ namespace Server.Engines.Craft
 		public int Stam { get; set; }
 		public bool UseSubRes2 { get { return m_UseSubRes2; } set { m_UseSubRes2 = value; } }
 		public bool UseAllRes { get; set; }
+		public bool ForceTypeRes { get; set; }
 		public bool NeedHeat { get { return m_NeedHeat; } set { m_NeedHeat = value; } }
 		public bool NeedOven { get { return m_NeedOven; } set { m_NeedOven = value; } }
 		public bool NeedMill { get { return m_NeedMill; } set { m_NeedMill = value; } }
@@ -261,15 +266,26 @@ namespace Server.Engines.Craft
 				consumHits = consume;
 			}
 
-			if (Mana > 0 && from.Mana < Mana)
+			if (Mana > 0)
 			{
-				message = "You lack the required mana to make that.";
-				return false;
+                if (ManaPhasingOrb.IsInManaPhase(from))
+                {
+                    if (consume)
+                        ManaPhasingOrb.RemoveFromTable(from);
+                    return true;
+                }
+
+                if (from.Mana < Mana)
+                {
+                    message = "You lack the required mana to make that.";
+                    return false;
+                }
+				else
+				{
+					consumMana = consume;
+				}
 			}
-			else
-			{
-				consumMana = consume;
-			}
+
 
 			if (Stam > 0 && from.Stam < Stam)
 			{
@@ -338,7 +354,9 @@ namespace Server.Engines.Craft
 			new[] {typeof(SpinedLeather), typeof(SpinedHides)}, new[] {typeof(HornedLeather), typeof(HornedHides)},
 			new[] {typeof(BarbedLeather), typeof(BarbedHides)}, new[] {typeof(BlankMap), typeof(BlankScroll)},
 			new[] {typeof(Cloth), typeof(UncutCloth), typeof(AbyssalCloth)}, new[] {typeof(CheeseWheel), typeof(CheeseWedge)},
-			new[] {typeof(Pumpkin), typeof(SmallPumpkin)}, new[] {typeof(WoodenBowlOfPeas), typeof(PewterBowlOfPeas)}
+			new[] {typeof(Pumpkin), typeof(SmallPumpkin)}, new[] {typeof(WoodenBowlOfPeas), typeof(PewterBowlOfPeas)},
+            new[] { typeof( CrystallineFragments ), typeof( BrokenCrystals ), typeof( ShatteredCrystals ), typeof( ScatteredCrystals ), typeof( CrushedCrystals ), typeof( JaggedCrystals ), typeof( AncientPotteryFragments ) },
+            new[] { typeof( RedScales ), typeof( BlueScales ), typeof( BlackScales ), typeof( YellowScales ), typeof( GreenScales ), typeof( WhiteScales ), typeof( MedusaDarkScales ), typeof( MedusaLightScales ) }
 		};
 
 		private static readonly Type[] m_ColoredItemTable = new[]
@@ -348,8 +366,12 @@ namespace Server.Engines.Craft
 			#endregion
 
 			typeof(BaseWeapon), typeof(BaseArmor), typeof(BaseClothing), typeof(BaseJewel), typeof(DragonBardingDeed),
-			typeof(BaseAddonDeed), typeof(BaseAddon), typeof(PlantPigment), typeof(SoftenedReeds), typeof(DryReeds),
-			typeof(PlantClippings)
+			typeof(BaseAddonDeed), typeof(BaseAddon),
+
+            #region Stygian Abyss
+            typeof(PlantPigment), typeof(SoftenedReeds), typeof(DryReeds), typeof(PlantClippings),
+            typeof(MedusaLightScales), typeof(MedusaDarkScales)
+            #endregion
 		};
 
 		private static readonly Type[] m_ColoredResourceTable = new[]
@@ -378,7 +400,22 @@ namespace Server.Engines.Craft
 			typeof(BambooChair), typeof(WoodenChair), typeof(FancyWoodenChairCushion), typeof(WoodenChairCushion),
 			typeof(Nightstand), typeof(LargeTable), typeof(WritingTable), typeof(YewWoodTable), typeof(PlainLowTable),
 			typeof(ElegantLowTable), typeof(Dressform), typeof(BasePlayerBB), typeof(BaseContainer), typeof(BarrelStaves),
-			typeof(BarrelLid)
+			typeof(BarrelLid), typeof(Clippers)
+		};
+
+		private static readonly Dictionary<Type, Type> m_ResourceConversionTable = new Dictionary<Type, Type>()
+		{
+			{ typeof(Board), typeof(Log) },
+			{ typeof(HeartwoodBoard), typeof(HeartwoodLog) },
+			{ typeof(BloodwoodBoard), typeof(BloodwoodLog) },
+			{ typeof(FrostwoodBoard), typeof(FrostwoodLog) },
+			{ typeof(OakBoard), typeof(OakLog) },
+			{ typeof(AshBoard), typeof(AshLog) },
+			{ typeof(YewBoard), typeof(YewLog) },
+			{ typeof(Leather), typeof(Hides) },
+			{ typeof(SpinedLeather), typeof(SpinedHides) },
+			{ typeof(HornedLeather), typeof(HornedHides) },
+			{ typeof(BarbedLeather), typeof(BarbedHides) },
 		};
 
 		private static Type[] m_NeverColorTable = new[] {typeof(OrcHelm)};
@@ -689,6 +726,13 @@ namespace Server.Engines.Craft
 				CraftRes craftRes = m_arCraftRes.GetAt(i);
 				Type baseType = craftRes.ItemType;
 
+				if (typeRes != null && ForceTypeRes)
+				{
+					Type outType;
+					if (m_ResourceConversionTable.TryGetValue(typeRes, out outType))
+						baseType = outType;
+				}
+
 				// Resource Mutation
 				if ((baseType == resCol.ResType) && (typeRes != null))
 				{
@@ -942,7 +986,7 @@ namespace Server.Engines.Craft
 			}
 			#endregion
 
-			if (!RetainsColorFrom(m_System, item.GetType()))
+            if (!RetainsColorFrom(m_System, item.GetType()))
 			{
 				return;
 			}
@@ -1046,7 +1090,7 @@ namespace Server.Engines.Craft
 			{
 				CraftSkill craftSkill = m_arCraftSkill.GetAt(i);
 
-				double minSkill = craftSkill.MinSkill;
+				double minSkill = craftSkill.MinSkill - MinSkillOffset;
 				double maxSkill = craftSkill.MaxSkill;
 				double valSkill = from.Skills[craftSkill.SkillToMake].Value;
 
@@ -1138,6 +1182,7 @@ namespace Server.Engines.Craft
 										int iRandom = Utility.Random(iMax);
 										iRandom += iMin + 1;
 										new InternalTimer(from, craftSystem, this, typeRes, tool, iRandom).Start();
+                                        return;
 									}
 									else
 									{
@@ -1167,7 +1212,7 @@ namespace Server.Engines.Craft
 					{
 						from.EndAction(typeof(CraftSystem));
 						from.SendGump(new CraftGump(from, craftSystem, tool, 1044153));
-							// You don't have the required skills to attempt this item.
+						// You don't have the required skills to attempt this item.
 					}
 				}
 				else
@@ -1181,6 +1226,8 @@ namespace Server.Engines.Craft
 			{
 				from.SendLocalizedMessage(500119); // You must wait to perform another action
 			}
+
+            AutoCraftTimer.EndTimer(from);
 		}
 
 		private object RequiredExpansionMessage(Expansion expansion)
@@ -1220,6 +1267,8 @@ namespace Server.Engines.Craft
 					from.SendLocalizedMessage(badCraft);
 				}
 
+                AutoCraftTimer.EndTimer(from);
+
 				return;
 			}
 
@@ -1242,6 +1291,8 @@ namespace Server.Engines.Craft
 					from.SendMessage((string)checkMessage);
 				}
 
+                AutoCraftTimer.EndTimer(from);
+
 				return;
 			}
 			else if (!ConsumeAttributes(from, ref checkMessage, false))
@@ -1258,6 +1309,8 @@ namespace Server.Engines.Craft
 				{
 					from.SendMessage((string)checkMessage);
 				}
+
+                AutoCraftTimer.EndTimer(from);
 
 				return;
 			}
@@ -1293,6 +1346,8 @@ namespace Server.Engines.Craft
 						from.SendMessage((string)message);
 					}
 
+                    AutoCraftTimer.EndTimer(from);
+
 					return;
 				}
 				else if (!ConsumeAttributes(from, ref message, true))
@@ -1309,6 +1364,8 @@ namespace Server.Engines.Craft
 					{
 						from.SendMessage((string)message);
 					}
+
+                    AutoCraftTimer.EndTimer(from);
 
 					return;
 				}
@@ -1471,6 +1528,16 @@ namespace Server.Engines.Craft
 					{
 						(item).Hue = PlantHueInfo.GetInfo(m_PlantHue).Hue;
 					}
+
+                    CraftContext context = craftSystem.GetContext(from);
+
+                    if (context.QuestOption == CraftQuestOption.QuestItem)
+                    {
+                        PlayerMobile px = from as PlayerMobile;
+
+                        if (!QuestHelper.CheckItem(px, item))
+                            from.SendLocalizedMessage(1072355, null, 0x23); // That item does not match any of your quest criteria	
+                    }
 					#endregion
 
 					from.AddToBackpack(item);
@@ -1480,6 +1547,8 @@ namespace Server.Engines.Craft
 						CommandLogging.WriteLine(
 							from, "Crafting {0} with craft system {1}", CommandLogging.Format(item), craftSystem.GetType().Name);
 					}
+
+                    AutoCraftTimer.OnSuccessfulCraft(from);
 					//from.PlaySound( 0x57 );
 				}
 
@@ -1548,6 +1617,8 @@ namespace Server.Engines.Craft
 				{
 					from.SendLocalizedMessage(1044153); // You don't have the required skills to attempt this item.
 				}
+
+                AutoCraftTimer.EndTimer(from);
 			}
 			else
 			{
@@ -1572,6 +1643,8 @@ namespace Server.Engines.Craft
 					{
 						from.SendMessage((string)message);
 					}
+
+                    AutoCraftTimer.EndTimer(from);
 
 					return;
 				}
@@ -1611,6 +1684,7 @@ namespace Server.Engines.Craft
 			private readonly CraftSystem m_CraftSystem;
 			private readonly Type m_TypeRes;
 			private readonly BaseTool m_Tool;
+            private bool m_AutoCraft;
 
 			public InternalTimer(
 				Mobile from, CraftSystem craftSystem, CraftItem craftItem, Type typeRes, BaseTool tool, int iCountMax)
@@ -1623,6 +1697,7 @@ namespace Server.Engines.Craft
 				m_CraftSystem = craftSystem;
 				m_TypeRes = typeRes;
 				m_Tool = tool;
+                m_AutoCraft = AutoCraftTimer.HasTimer(from);
 			}
 
 			protected override void OnTick()
@@ -1651,6 +1726,8 @@ namespace Server.Engines.Craft
 						{
 							m_From.SendLocalizedMessage(badCraft);
 						}
+
+                        AutoCraftTimer.EndTimer(m_From);
 
 						return;
 					}
@@ -1696,7 +1773,7 @@ namespace Server.Engines.Craft
 						makersMark = m_CraftItem.IsMarkable(m_CraftItem.ItemType);
 					}
 
-					if (makersMark && context.MarkOption == CraftMarkOption.PromptForMark)
+                    if (makersMark && context.MarkOption == CraftMarkOption.PromptForMark && !m_AutoCraft)
 					{
 						m_From.SendGump(new QueryMakersMarkGump(quality, m_From, m_CraftItem, m_CraftSystem, m_TypeRes, m_Tool));
 					}

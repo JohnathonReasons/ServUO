@@ -501,6 +501,7 @@ namespace Server
 	/// <summary>
 	///     Base class representing players, npcs, and creatures.
 	/// </summary>
+    [System.Runtime.InteropServices.ComVisible(true)]
 	public class Mobile : IEntity, IHued, IComparable<Mobile>, ISerializable, ISpawnable
 	{
 		#region CompareTo(...)
@@ -833,6 +834,11 @@ namespace Server
 
 		public virtual double RacialSkillBonus { get { return 0; } }
 
+        public virtual double GetRacialSkillBonus(SkillName skill)
+        {
+            return RacialSkillBonus;
+        }
+
 		private List<ResistanceMod> m_ResistMods;
 
 		private int[] m_Resistances;
@@ -964,6 +970,10 @@ namespace Server
 			UpdateResistances();
 		}
 
+		private static int m_MinPlayerResistance = -70;
+
+		public static int MinPlayerResistance { get { return m_MinPlayerResistance; } set { m_MinPlayerResistance = value; } }
+
 		private static int m_MaxPlayerResistance = 70;
 
 		public static int MaxPlayerResistance { get { return m_MaxPlayerResistance; } set { m_MaxPlayerResistance = value; } }
@@ -1036,7 +1046,12 @@ namespace Server
 
 		public virtual int GetMinResistance(ResistanceType type)
 		{
-			return int.MinValue;
+			if (m_Player)
+			{
+				return m_MinPlayerResistance;
+			}
+
+			return -100;
 		}
 
 		public virtual int GetMaxResistance(ResistanceType type)
@@ -1046,7 +1061,7 @@ namespace Server
 				return m_MaxPlayerResistance;
 			}
 
-			return int.MaxValue;
+			return 100;
 		}
 
 		public int GetAOSStatus(int index)
@@ -3725,7 +3740,7 @@ namespace Server
 			}
 		}
 
-		[CommandProperty(AccessLevel.Counselor, AccessLevel.Owner)]
+		[CommandProperty(AccessLevel.Counselor, AccessLevel.Administrator)]
 		public IAccount Account { get; set; }
 
 		private bool m_Deleted;
@@ -5370,7 +5385,7 @@ namespace Server
 			return null;
 		}
 
-		public Mobile FindMostTotalDamger(bool allowSelf)
+		public Mobile FindMostTotalDamager(bool allowSelf)
 		{
 			return GetDamagerFrom(FindMostTotalDamageEntry(allowSelf));
 		}
@@ -5401,7 +5416,7 @@ namespace Server
 			return mostTotal;
 		}
 
-		public Mobile FindLeastTotalDamger(bool allowSelf)
+		public Mobile FindLeastTotalDamager(bool allowSelf)
 		{
 			return GetDamagerFrom(FindLeastTotalDamageEntry(allowSelf));
 		}
@@ -5546,7 +5561,12 @@ namespace Server
 			Damage(amount, from, true);
 		}
 
-		public virtual void Damage(int amount, Mobile from, bool informMount)
+        public virtual void Damage(int amount, Mobile from, bool informMount)
+        {
+            Damage(amount, from, informMount, true);
+        }
+
+		public virtual void Damage(int amount, Mobile from, bool informMount, bool checkDisrupt)
 		{
 			if (!CanBeDamaged() || m_Deleted)
 			{
@@ -5563,7 +5583,7 @@ namespace Server
 				int oldHits = Hits;
 				int newHits = oldHits - amount;
 
-				if (m_Spell != null)
+                if (checkDisrupt && m_Spell != null)
 				{
 					m_Spell.OnCasterHurt();
 				}
@@ -7581,13 +7601,14 @@ namespace Server
 			}
 
 			Region newRegion = Region.Find(m_Location, m_Map);
-
-			if (newRegion != m_Region)
+			Region oldRegion = m_Region;
+			
+			if (newRegion != oldRegion)
 			{
-				Region.OnRegionChange(this, m_Region, newRegion);
-
 				m_Region = newRegion;
-				OnRegionChange(m_Region, newRegion);
+				
+				Region.OnRegionChange(this, oldRegion, newRegion);
+				OnRegionChange(oldRegion, newRegion);
 			}
 		}
 
@@ -9057,6 +9078,15 @@ namespace Server
 		public string RawName { get { return m_Name; } set { Name = value; } }
 
 		[CommandProperty(AccessLevel.Decorator)]
+		public virtual string TitleName
+		{
+			get
+			{
+				return m_Name;
+			}
+		}
+
+		[CommandProperty(AccessLevel.Decorator)]
 		public string Name
 		{
 			get
@@ -10486,6 +10516,46 @@ namespace Server
 			return true;
 		}
 
+		public bool OpenTrade(Mobile from)
+		{
+			return OpenTrade(from, null);
+		}
+
+		public virtual bool OpenTrade(Mobile from, Item offer)
+		{
+			if (!from.Player || !Player || !from.Alive || !Alive)
+			{
+				return false;
+			}
+
+			NetState ourState = m_NetState;
+			NetState theirState = from.m_NetState;
+
+			if (ourState == null || theirState == null)
+			{
+				return false;
+			}
+
+			SecureTradeContainer cont = theirState.FindTradeContainer(this);
+
+			if (!from.CheckTrade(this, offer, cont, true, true, 0, 0))
+			{
+				return false;
+			}
+
+			if (cont == null)
+			{
+				cont = theirState.AddTrade(ourState);
+			}
+
+			if (offer != null)
+			{
+				cont.DropItem(offer);
+			}
+
+			return true;
+		}
+
 		/// <summary>
 		///     Overridable. Event invoked when a Mobile (<paramref name="from" />) drops an
 		///     <see cref="Item">
@@ -10506,36 +10576,13 @@ namespace Server
 
 				return false;
 			}
-			else if (from.Player && Player && from.Alive && Alive && from.InRange(Location, 2))
+			
+			if (from.InRange(Location, 2))
 			{
-				NetState ourState = m_NetState;
-				NetState theirState = from.m_NetState;
-
-				if (ourState != null && theirState != null)
-				{
-					SecureTradeContainer cont = theirState.FindTradeContainer(this);
-
-					if (!from.CheckTrade(this, dropped, cont, true, true, 0, 0))
-					{
-						return false;
-					}
-
-					if (cont == null)
-					{
-						cont = theirState.AddTrade(ourState);
-					}
-
-					cont.DropItem(dropped);
-
-					return true;
-				}
-
-				return false;
+				return OpenTrade(from, dropped);
 			}
-			else
-			{
-				return false;
-			}
+
+			return false;
 		}
 
 		public virtual bool CheckEquip(Item item)
@@ -10761,7 +10808,7 @@ namespace Server
 
 		public void DefaultMobileInit()
 		{
-			m_StatCap = 225;
+            m_StatCap = Config.Get("PlayerCaps.TotalStatCap", 225); ;
 			m_FollowersMax = 5;
 			m_Skills = new Skills(this);
 			m_Items = new List<Item>();
@@ -12254,7 +12301,29 @@ namespace Server
 			}
 		}
 
-		public Item Talisman { get { return FindItemOnLayer(Layer.Talisman); } }
+        public Item Talisman
+        {
+            get
+            {
+                return FindItemOnLayer(Layer.Talisman) as Item;
+            }
+        }
+
+        public Item Ring
+        {
+            get
+            {
+                return FindItemOnLayer(Layer.Ring) as Item;
+            }
+        }
+
+        public Item Bracelet
+        {
+            get
+            {
+                return FindItemOnLayer(Layer.Bracelet) as Item;
+            }
+        }
 		#endregion
 
 		/// <summary>
@@ -12276,7 +12345,7 @@ namespace Server
 		}
 
 		[CommandProperty(AccessLevel.GameMaster)]
-		public bool Meditating { get; set; }
+		public virtual bool Meditating { get; set; }
 
 		[CommandProperty(AccessLevel.Decorator)]
 		public bool CanSwim { get { return m_CanSwim; } set { m_CanSwim = value; } }

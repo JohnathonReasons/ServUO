@@ -98,20 +98,25 @@ namespace Server.Engines.Craft
             typeof(Candelabra), typeof(Scales),
             typeof(Key), typeof(Globe),
             typeof(Spyglass), typeof(Lantern),
-            typeof(HeatingStand)
+            typeof(HeatingStand),
+            typeof(GorgonLense), typeof(MedusaLightScales), typeof(MedusaDarkScales), typeof(RedScales), 
+            typeof(BlueScales), typeof(BlackScales), typeof(GreenScales), typeof(YellowScales), typeof(WhiteScales),
+            typeof(PlantPigment), typeof(SoftenedReeds), typeof(DryReeds), typeof(PlantClippings)
         };
 
         public override bool RetainsColorFrom(CraftItem item, Type type)
         {
-            if (!type.IsSubclassOf(typeof(BaseIngot)))
+            if (type == typeof(CrystalDust))
                 return false;
 
-            type = item.ItemType;
-
             bool contains = false;
+            type = item.ItemType;
 
             for (int i = 0; !contains && i < m_TinkerColorables.Length; ++i)
                 contains = (m_TinkerColorables[i] == type);
+
+            if (!contains && !type.IsSubclassOf(typeof(BaseIngot)))
+                return false;
 
             return contains;
         }
@@ -184,17 +189,17 @@ namespace Server.Engines.Craft
             int index = -1;
 
             #region Wooden Items
-            this.AddCraft(typeof(JointingPlane), 1044042, 1024144, 0.0, 50.0, typeof(Log), 1044041, 4, 1044351);
-            this.AddCraft(typeof(MouldingPlane), 1044042, 1024140, 0.0, 50.0, typeof(Log), 1044041, 4, 1044351);
-            this.AddCraft(typeof(SmoothingPlane), 1044042, 1024146, 0.0, 50.0, typeof(Log), 1044041, 4, 1044351);
-            this.AddCraft(typeof(ClockFrame), 1044042, 1024173, 0.0, 50.0, typeof(Log), 1044041, 6, 1044351);
-            this.AddCraft(typeof(Axle), 1044042, 1024187, -25.0, 25.0, typeof(Log), 1044041, 2, 1044351);
-            this.AddCraft(typeof(RollingPin), 1044042, 1024163, 0.0, 50.0, typeof(Log), 1044041, 5, 1044351);
+            this.AddCraft(typeof(JointingPlane), 1044042, 1024144, 0.0, 50.0, typeof(Board), 1044041, 4, 1044351);
+            this.AddCraft(typeof(MouldingPlane), 1044042, 1024140, 0.0, 50.0, typeof(Board), 1044041, 4, 1044351);
+            this.AddCraft(typeof(SmoothingPlane), 1044042, 1024146, 0.0, 50.0, typeof(Board), 1044041, 4, 1044351);
+            this.AddCraft(typeof(ClockFrame), 1044042, 1024173, 0.0, 50.0, typeof(Board), 1044041, 6, 1044351);
+            this.AddCraft(typeof(Axle), 1044042, 1024187, -25.0, 25.0, typeof(Board), 1044041, 2, 1044351);
+            this.AddCraft(typeof(RollingPin), 1044042, 1024163, 0.0, 50.0, typeof(Board), 1044041, 5, 1044351);
 
             if (Core.SE)
             {
                 index = this.AddCraft(typeof(Nunchaku), 1044042, 1030158, 70.0, 120.0, typeof(IronIngot), 1044036, 3, 1044037);
-                this.AddRes(index, typeof(Log), 1044041, 8, 1044351);
+                this.AddRes(index, typeof(Board), 1044041, 8, 1044351);
                 this.SetNeededExpansion(index, Expansion.SE);
             }
             #endregion
@@ -223,6 +228,7 @@ namespace Server.Engines.Craft
             this.AddCraft(typeof(FletcherTools), 1044046, 1044166, 35.0, 85.0, typeof(IronIngot), 1044036, 3, 1044037);
             this.AddCraft(typeof(MapmakersPen), 1044046, 1044167, 25.0, 75.0, typeof(IronIngot), 1044036, 1, 1044037);
             this.AddCraft(typeof(ScribesPen), 1044046, 1044168, 25.0, 75.0, typeof(IronIngot), 1044036, 1, 1044037);
+            this.AddCraft(typeof(Clippers), 1044046, 1112117, 50.0, 50.0, typeof(IronIngot), 1044036, 4, 1044037);
 
             #region Mondain's Legacy
             if (Core.ML)
@@ -285,15 +291,15 @@ namespace Server.Engines.Craft
             if (Core.SE)
             {
                 index = this.AddCraft(typeof(ShojiLantern), 1044050, 1029404, 65.0, 115.0, typeof(IronIngot), 1044036, 10, 1044037);
-                this.AddRes(index, typeof(Log), 1044041, 5, 1044351);
+                this.AddRes(index, typeof(Board), 1044041, 5, 1044351);
                 this.SetNeededExpansion(index, Expansion.SE);
 
                 index = this.AddCraft(typeof(PaperLantern), 1044050, 1029406, 65.0, 115.0, typeof(IronIngot), 1044036, 10, 1044037);
-                this.AddRes(index, typeof(Log), 1044041, 5, 1044351);
+                this.AddRes(index, typeof(Board), 1044041, 5, 1044351);
                 this.SetNeededExpansion(index, Expansion.SE);
 
                 index = this.AddCraft(typeof(RoundPaperLantern), 1044050, 1029418, 65.0, 115.0, typeof(IronIngot), 1044036, 10, 1044037);
-                this.AddRes(index, typeof(Log), 1044041, 5, 1044351);
+                this.AddRes(index, typeof(Board), 1044041, 5, 1044351);
                 this.SetNeededExpansion(index, Expansion.SE);
 
                 index = this.AddCraft(typeof(WindChimes), 1044050, 1030290, 80.0, 130.0, typeof(IronIngot), 1044036, 15, 1044037);
@@ -302,6 +308,13 @@ namespace Server.Engines.Craft
                 index = this.AddCraft(typeof(FancyWindChimes), 1044050, 1030291, 80.0, 130.0, typeof(IronIngot), 1044036, 15, 1044037);
                 this.SetNeededExpansion(index, Expansion.SE);
             }
+            #endregion
+
+            #region Stygian Abyss
+            index = AddCraft(typeof(GorgonLense), 1044050, 1112625, 90.0, 120.0, typeof(RedScales), 1112626, 2, 1053097);
+            AddRes(index, typeof(CrystalDust), 1112328, 3, 1044253);
+            ForceNonExceptional(index);
+            SetItemHue(index, 1266);
             #endregion
 
             #region Jewelry
@@ -461,6 +474,7 @@ namespace Server.Engines.Craft
                 this.SetNeededExpansion(index, Expansion.ML);
 
                 index = this.AddCraft(typeof(ResilientBracer), 1073107, 1072933, 100.0, 125.0, typeof(IronIngot), 1044036, 2, 1044037);
+                this.SetMinSkillOffset(index, 25.0);
                 this.AddRes(index, typeof(CapturedEssence), 1032686, 1, 1044253);
                 this.AddRes(index, typeof(BlueDiamond), 1032696, 10, 1044253);
                 this.AddRes(index, typeof(Diamond), 1062608, 50, 1044253);
@@ -469,6 +483,7 @@ namespace Server.Engines.Craft
                 this.SetNeededExpansion(index, Expansion.ML);
 
                 index = this.AddCraft(typeof(EssenceOfBattle), 1073107, 1072935, 100.0, 125.0, typeof(IronIngot), 1044036, 2, 1044037);
+                this.SetMinSkillOffset(index, 25.0);
                 this.AddRes(index, typeof(CapturedEssence), 1032686, 1, 1044253);
                 this.AddRes(index, typeof(FireRuby), 1032695, 10, 1044253);
                 this.AddRes(index, typeof(Ruby), 1062603, 50, 1044253);
@@ -477,6 +492,7 @@ namespace Server.Engines.Craft
                 this.SetNeededExpansion(index, Expansion.ML);
 
                 index = this.AddCraft(typeof(PendantOfTheMagi), 1073107, 1072937, 100.0, 125.0, typeof(IronIngot), 1044036, 2, 1044037);
+                this.SetMinSkillOffset(index, 25.0);
                 this.AddRes(index, typeof(EyeOfTheTravesty), 1032685, 1, 1044253);
                 this.AddRes(index, typeof(WhitePearl), 1032694, 10, 1044253);
                 this.AddRes(index, typeof(StarSapphire), 1062600, 50, 1044253);

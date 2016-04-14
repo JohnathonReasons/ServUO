@@ -132,20 +132,20 @@ namespace Server.Spells
 		{
 			if (singleTarget != null)
 			{
-				return GetNewAosDamage(bonus, dice, sides, (Caster.Player && singleTarget.Player), GetDamageScalar(singleTarget));
+				return GetNewAosDamage(bonus, dice, sides, (Caster.Player && singleTarget.Player), GetDamageScalar(singleTarget), singleTarget);
 			}
 			else
 			{
-				return GetNewAosDamage(bonus, dice, sides, false);
+				return GetNewAosDamage(bonus, dice, sides, false, null);
 			}
 		}
 
-		public virtual int GetNewAosDamage(int bonus, int dice, int sides, bool playerVsPlayer)
+		public virtual int GetNewAosDamage(int bonus, int dice, int sides, bool playerVsPlayer, Mobile target)
 		{
-			return GetNewAosDamage(bonus, dice, sides, playerVsPlayer, 1.0);
+			return GetNewAosDamage(bonus, dice, sides, playerVsPlayer, 1.0, target);
 		}
 
-		public virtual int GetNewAosDamage(int bonus, int dice, int sides, bool playerVsPlayer, double scalar)
+		public virtual int GetNewAosDamage(int bonus, int dice, int sides, bool playerVsPlayer, double scalar, Mobile target)
 		{
 			int damage = Utility.Dice(dice, sides, bonus) * 100;
 			int damageBonus = 0;
@@ -162,6 +162,26 @@ namespace Server.Spells
 			#region Mondain's Legacy
 			sdiBonus += ArcaneEmpowermentSpell.GetSpellBonus(m_Caster, playerVsPlayer);
 			#endregion
+
+            if (target != null && RunedSashOfWarding.IsUnderEffects(target, WardingEffect.SpellDamage))
+                sdiBonus -= 10;
+
+			if (m_Caster is PlayerMobile && m_Caster.Race == Race.Gargoyle)
+			{
+				double perc = ((double)m_Caster.Hits / (double)m_Caster.HitsMax) * 100;
+
+				perc = 100 - perc;
+				perc /= 20;
+
+				if (perc > 4)
+					sdiBonus += 12;
+				else if (perc >= 3)
+					sdiBonus += 9;
+				else if (perc >= 2)
+					sdiBonus += 6;
+				else if (perc >= 1)
+					sdiBonus += 3;
+			}
 
 			// PvP spell damage increase cap of 15% from an item’s magic property, 30% if spell school focused.
 			if (playerVsPlayer)
@@ -200,51 +220,69 @@ namespace Server.Spells
 
 		public virtual bool IsCasting { get { return m_State == SpellState.Casting; } }
 
-		public virtual void OnCasterHurt()
-		{
-			//Confirm: Monsters and pets cannot be disturbed.
-			if (!Caster.Player)
-			{
-				return;
-			}
+        public virtual void OnCasterHurt()
+        {
+            CheckCasterDisruption(false, 0, 0, 0, 0, 0);
+        }
 
-			if (IsCasting)
-			{
-				object o = ProtectionSpell.Registry[m_Caster];
-				bool disturb = true;
+        public virtual void CheckCasterDisruption(bool checkElem = false, int phys = 0, int fire = 0, int cold = 0, int pois = 0, int nrgy = 0)
+        {
+            if (!Caster.Player || Caster.AccessLevel > AccessLevel.Player)
+            {
+                return;
+            }
 
-				if (o != null && o is double)
-				{
-					if (((double)o) > Utility.RandomDouble() * 100.0)
-					{
-						disturb = false;
-					}
-				}
+            if (IsCasting)
+            {
+                object o = ProtectionSpell.Registry[m_Caster];
+                bool disturb = true;
 
-				#region Stygian Abyss
-				int focus = SAAbsorptionAttributes.GetValue(Caster, SAAbsorptionAttribute.CastingFocus);
+                if (o != null && o is double)
+                {
+                    if (((double)o) > Utility.RandomDouble() * 100.0)
+                    {
+                        disturb = false;
+                    }
+                }
 
-				if (focus > 0)
-				{
-					if (focus > 30)
-					{
-						focus = 30;
-					}
+                #region Stygian Abyss
+                int focus = SAAbsorptionAttributes.GetValue(Caster, SAAbsorptionAttribute.CastingFocus);
+                if (focus > 12) focus = 12;
+                focus += m_Caster.Skills[SkillName.Inscribe].Value >= 50 ? GetInscribeFixed(m_Caster) / 200 : 0;
 
-					if (focus > Utility.Random(100))
-					{
-						disturb = false;
-						Caster.SendLocalizedMessage(1113690); // You regain your focus and continue casting the spell.
-					}
-				}
-				#endregion
+                if (focus > 0 && focus > Utility.Random(100))
+                {
+                    disturb = false;
+                    Caster.SendLocalizedMessage(1113690); // You regain your focus and continue casting the spell.
+                }
+                else if (checkElem)
+                {
+                    int res = 0;
 
-				if (disturb)
-				{
-					Disturb(DisturbType.Hurt, false, true);
-				}
-			}
-		}
+                    if (phys == 100)
+                        res = Math.Min(40, SAAbsorptionAttributes.GetValue(m_Caster, SAAbsorptionAttribute.ResonanceKinetic));
+
+                    else if (fire == 100)
+                        res = Math.Min(40, SAAbsorptionAttributes.GetValue(m_Caster, SAAbsorptionAttribute.ResonanceFire));
+
+                    else if (cold == 100)
+                        res = Math.Min(40, SAAbsorptionAttributes.GetValue(m_Caster, SAAbsorptionAttribute.ResonanceCold));
+
+                    else if (pois == 100)
+                        res = Math.Min(40, SAAbsorptionAttributes.GetValue(m_Caster, SAAbsorptionAttribute.ResonancePoison));
+
+                    else if (nrgy == 100)
+                        res = Math.Min(40, SAAbsorptionAttributes.GetValue(m_Caster, SAAbsorptionAttribute.ResonanceEnergy));
+
+                    if (res > Utility.Random(100))
+                        disturb = false;
+                }
+                #endregion
+
+                if (disturb)
+                    Disturb(DisturbType.Hurt, false, true);
+            }
+        }
 
 		public virtual void OnCasterKilled()
 		{
@@ -785,6 +823,12 @@ namespace Server.Spells
 		public virtual int ScaleMana(int mana)
 		{
 			double scalar = 1.0;
+
+            if (ManaPhasingOrb.IsInManaPhase(Caster))
+            {
+                ManaPhasingOrb.RemoveFromTable(Caster);
+                return 0;
+            }
 
 			if (!MindRotSpell.GetMindRotScalar(Caster, ref scalar))
 			{

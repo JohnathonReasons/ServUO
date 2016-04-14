@@ -237,6 +237,14 @@ namespace Server.Spells
             }
         }
 
+		protected static void RemoveStatOffsetCallback(object state)
+		{
+			if (!(state is Mobile))
+				return;
+			// This call has the side-effect of updating all stats
+			((Mobile)state).CheckStatTimers();
+		}			
+
         public static bool AddStatOffset(Mobile m, StatType type, int offset, TimeSpan duration)
         {
             if (offset > 0)
@@ -255,22 +263,16 @@ namespace Server.Spells
         public static bool AddStatBonus(Mobile caster, Mobile target, StatType type, int bonus, TimeSpan duration)
         {
             int offset = bonus;
-            string name = String.Format("[Magic] {0} Offset", type);
+            string name = String.Format("[Magic] {0} Buff", type);
 
             StatMod mod = target.GetStatMod(name);
+			if (mod != null)
+				offset = Math.Max(mod.Offset, offset);
 
-            if (mod != null && mod.Offset < 0)
-            {
-                target.AddStatMod(new StatMod(type, name, mod.Offset + offset, duration));
-                return true;
-            }
-            else if (mod == null || mod.Offset < offset)
-            {
-                target.AddStatMod(new StatMod(type, name, offset, duration));
-                return true;
-            }
+            target.AddStatMod(new StatMod(type, name, offset, duration));
+			Timer.DelayCall(duration, RemoveStatOffsetCallback, target);
 
-            return false;
+            return true;
         }
 
         public static bool AddStatCurse(Mobile caster, Mobile target, StatType type)
@@ -280,23 +282,17 @@ namespace Server.Spells
 
         public static bool AddStatCurse(Mobile caster, Mobile target, StatType type, int curse, TimeSpan duration)
         {
-            int offset = -curse;
-            string name = String.Format("[Magic] {0} Offset", type);
+            int offset = curse;
+            string name = String.Format("[Magic] {0} Curse", type);
 
             StatMod mod = target.GetStatMod(name);
+			if (mod != null)
+				offset = Math.Max(mod.Offset, offset);
+			offset *= -1;
 
-            if (mod != null && mod.Offset > 0)
-            {
-                target.AddStatMod(new StatMod(type, name, mod.Offset + offset, duration));
-                return true;
-            }
-            else if (mod == null || mod.Offset > offset)
-            {
-                target.AddStatMod(new StatMod(type, name, offset, duration));
-                return true;
-            }
-
-            return false;
+            target.AddStatMod(new StatMod(type, name, offset, duration));
+			Timer.DelayCall(duration, RemoveStatOffsetCallback, target);
+			return true;
         }
 
         public static TimeSpan GetDuration(Mobile caster, Mobile target)
@@ -486,14 +482,14 @@ namespace Server.Spells
             1, 1
         };
 
-        public static void Summon(BaseCreature creature, Mobile caster, int sound, TimeSpan duration, bool scaleDuration, bool scaleStats)
+        public static void Summon(BaseCreature creature, Mobile caster, int sound, TimeSpan duration, bool scaleDuration, bool scaleStats, bool summoned = true, SkillName useSkill = SkillName.Magery)
         {
             Map map = caster.Map;
 
             if (map == null)
                 return;
 
-            double scale = 1.0 + ((caster.Skills[SkillName.Magery].Value - 100.0) / 200.0);
+            double scale = 1.0 + ((caster.Skills[useSkill].Value - 100.0) / 200.0);
 
             if (scaleDuration)
                 duration = TimeSpan.FromSeconds(duration.TotalSeconds * scale);
@@ -514,7 +510,7 @@ namespace Server.Spells
 
             if (SpellHelper.FindValidSpawnLocation(map, ref p, true))
             {
-                BaseCreature.Summon(creature, caster, p, sound, duration);
+                BaseCreature.Summon(creature, summoned, caster, p, sound, duration);
                 return;
             }
 
@@ -667,10 +663,19 @@ namespace Server.Spells
                 return false;
             }
 
-            if (caster != null && caster.IsPlayer() && caster.Region.IsPartOf(typeof(Regions.Jail)))
+            if (caster != null && caster.IsPlayer())
             {
-                caster.SendLocalizedMessage(1114345); // You'll need a better jailbreak plan than that!
-                return false;
+				// Jail region
+				if (caster.Region.IsPartOf(typeof(Regions.Jail)))
+				{
+					caster.SendLocalizedMessage(1114345); // You'll need a better jailbreak plan than that!
+					return false;
+				}
+				else if(caster.Region is Regions.GreenAcres)
+				{
+					caster.SendLocalizedMessage(502360); // You cannot teleport into that area.
+					return false;
+				}
             }
 
             // Always allow monsters to teleport
@@ -1064,9 +1069,21 @@ namespace Server.Spells
             Damage(spell, ts, target, spell.Caster, damage, phys, fire, cold, pois, nrgy, dfa);
         }
 
+        public static void Damage(Spell spell, Mobile target, double damage, int phys, int fire, int cold, int pois, int nrgy, int chaos, int direct)
+        {
+            TimeSpan ts = GetDamageDelayForSpell(spell);
+
+            Damage(spell, ts, target, spell.Caster, damage, phys, fire, cold, pois, nrgy, DFAlgorithm.Standard, chaos, direct);
+        }
+
         public static void Damage(TimeSpan delay, Mobile target, double damage, int phys, int fire, int cold, int pois, int nrgy)
         {
             Damage(delay, target, null, damage, phys, fire, cold, pois, nrgy);
+        }
+
+        public static void Damage(TimeSpan delay, Mobile target, double damage, int phys, int fire, int cold, int pois, int nrgy, int chaos, int direct)
+        {
+            Damage(null, delay, target, null, damage, phys, fire, cold, pois, nrgy, DFAlgorithm.Standard, chaos, direct);
         }
 
         public static void Damage(TimeSpan delay, Mobile target, Mobile from, double damage, int phys, int fire, int cold, int pois, int nrgy)
@@ -1079,7 +1096,7 @@ namespace Server.Spells
             Damage(null, delay, target, from, damage, phys, fire, cold, pois, nrgy, dfa);
         }
 
-        public static void Damage(Spell spell, TimeSpan delay, Mobile target, Mobile from, double damage, int phys, int fire, int cold, int pois, int nrgy, DFAlgorithm dfa)
+        public static void Damage(Spell spell, TimeSpan delay, Mobile target, Mobile from, double damage, int phys, int fire, int cold, int pois, int nrgy, DFAlgorithm dfa, int chaos = 0, int direct = 0)
         {
             int iDamage = (int)damage;
 
@@ -1093,7 +1110,7 @@ namespace Server.Spells
 
                 WeightOverloading.DFA = dfa;
 
-                int damageGiven = AOS.Damage(target, from, iDamage, phys, fire, cold, pois, nrgy);
+                int damageGiven = AOS.Damage(target, from, iDamage, phys, fire, cold, pois, nrgy, chaos, direct);
 
                 if (from != null) // sanity check
                 {
@@ -1104,7 +1121,7 @@ namespace Server.Spells
             }
             else
             {
-                new SpellDamageTimerAOS(spell, target, from, iDamage, phys, fire, cold, pois, nrgy, delay, dfa).Start();
+                new SpellDamageTimerAOS(spell, target, from, iDamage, phys, fire, cold, pois, nrgy, chaos, direct, delay, dfa).Start();
             }
 
             if (target is BaseCreature && from != null && delay == TimeSpan.Zero)
@@ -1134,14 +1151,25 @@ namespace Server.Spells
                 }
                 else if (context.Type == typeof(VampiricEmbraceSpell))
                 {
-                    from.Hits += AOS.Scale(damageGiven, 20);
-                    from.PlaySound(0x44D);
+                    #region High Seas
+                    if (target is BaseCreature && ((BaseCreature)target).TaintedLifeAura)
+                    {
+                        AOS.Damage(from, target, AOS.Scale(damageGiven, 20), false, 0, 0, 0, 0, 0, 0, 100, false, false, false);
+                        from.SendLocalizedMessage(1116778); //The tainted life force energy damages you as your body tries to absorb it.
+                    }
+                    #endregion
+                    else
+                    {
+                        from.Hits += AOS.Scale(damageGiven, 20);
+                        from.PlaySound(0x44D);
+                    }
                 }
             }
         }
 
         public static void Heal(int amount, Mobile target, Mobile from)
         {
+            Spellweaving.ArcaneEmpowermentSpell.AddHealBonus(from, ref amount);
             Heal(amount, target, from, true);
         }
 
@@ -1205,10 +1233,14 @@ namespace Server.Spells
 
             private readonly int m_Nrgy;
 
+            private readonly int m_Chaos;
+
+            private readonly int m_Direct;
+
             private readonly DFAlgorithm m_DFA;
             private readonly Spell m_Spell;
 
-            public SpellDamageTimerAOS(Spell s, Mobile target, Mobile from, int damage, int phys, int fire, int cold, int pois, int nrgy, TimeSpan delay, DFAlgorithm dfa)
+            public SpellDamageTimerAOS(Spell s, Mobile target, Mobile from, int damage, int phys, int fire, int cold, int pois, int nrgy, int chaos, int direct, TimeSpan delay, DFAlgorithm dfa)
                 : base(delay)
             {
                 this.m_Target = target;
@@ -1219,6 +1251,8 @@ namespace Server.Spells
                 this.m_Cold = cold;
                 this.m_Pois = pois;
                 this.m_Nrgy = nrgy;
+                this.m_Chaos = chaos;
+                this.m_Direct = direct;
                 this.m_DFA = dfa;
                 this.m_Spell = s;
                 if (this.m_Spell != null && this.m_Spell.DelayedDamage && !this.m_Spell.DelayedDamageStacking)
@@ -1237,7 +1271,7 @@ namespace Server.Spells
 
                 WeightOverloading.DFA = this.m_DFA;
 
-                int damageGiven = AOS.Damage(this.m_Target, this.m_From, this.m_Damage, this.m_Phys, this.m_Fire, this.m_Cold, this.m_Pois, this.m_Nrgy);
+                int damageGiven = AOS.Damage(this.m_Target, this.m_From, this.m_Damage, this.m_Phys, this.m_Fire, this.m_Cold, this.m_Pois, this.m_Nrgy, this.m_Chaos, this.m_Direct);
 
                 if (this.m_From != null) // sanity check
                 {
@@ -1340,6 +1374,11 @@ namespace Server.Spells
                 caster.SendLocalizedMessage(1061091); // You cannot cast that spell in this form.
                 return false;
             }
+			else if (caster.Flying)
+			{
+				caster.SendLocalizedMessage(1112567); // You are flying.
+				return false;
+			}
 
             return true;
         }

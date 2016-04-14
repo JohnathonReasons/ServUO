@@ -1025,89 +1025,35 @@ namespace Server
 		{
 			try
 			{
-				return OpenUOSDK.ArtFactory.GetStatic<Bitmap>(itemID);
+				return Ultima.Art.GetStatic(itemID);
 			}
 			catch
 			{
 				Utility.PushColor(ConsoleColor.Red);
-				Console.WriteLine("Error: Not able to read client files.");
+				Console.WriteLine("Ultima Art: Unable to read client files.");
 				Utility.PopColor();
 			}
 
 			return null;
 		}
 
-		public static unsafe void Measure(Bitmap bmp, out int xMin, out int yMin, out int xMax, out int yMax)
+		public static void Measure(Bitmap bmp, out int xMin, out int yMin, out int xMax, out int yMax)
 		{
-			xMin = yMin = 0;
-			xMax = yMax = -1;
+			Ultima.Art.Measure(bmp, out xMin, out yMin, out xMax, out yMax);
+		}
 
-			if (bmp == null || bmp.Width <= 0 || bmp.Height <= 0)
-			{
-				return;
-			}
+		public static Rectangle MeasureBound(Bitmap bmp)
+		{
+			int xMin, yMin, xMax, yMax;
+			Measure(bmp, out xMin, out yMin, out xMax, out yMax);
+			return new Rectangle(xMin, yMin, xMax - xMin, yMax - yMin);
+		}
 
-			BitmapData bd = bmp.LockBits(
-				new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadOnly, PixelFormat.Format16bppArgb1555);
-
-			int delta = (bd.Stride >> 1) - bd.Width;
-			int lineDelta = bd.Stride >> 1;
-
-			var pBuffer = (ushort*)bd.Scan0;
-			var pLineEnd = pBuffer + bd.Width;
-			var pEnd = pBuffer + (bd.Height * lineDelta);
-
-			bool foundPixel = false;
-
-			int x = 0, y = 0;
-
-			while (pBuffer < pEnd)
-			{
-				while (pBuffer < pLineEnd)
-				{
-					ushort c = *pBuffer++;
-
-					if ((c & 0x8000) != 0)
-					{
-						if (!foundPixel)
-						{
-							foundPixel = true;
-							xMin = xMax = x;
-							yMin = yMax = y;
-						}
-						else
-						{
-							if (x < xMin)
-							{
-								xMin = x;
-							}
-
-							if (y < yMin)
-							{
-								yMin = y;
-							}
-
-							if (x > xMax)
-							{
-								xMax = x;
-							}
-
-							if (y > yMax)
-							{
-								yMax = y;
-							}
-						}
-					}
-					++x;
-				}
-
-				pBuffer += delta;
-				pLineEnd += lineDelta;
-				++y;
-				x = 0;
-			}
-
-			bmp.UnlockBits(bd);
+		public static Size MeasureSize(Bitmap bmp)
+		{
+			int xMin, yMin, xMax, yMax;
+			Measure(bmp, out xMin, out yMin, out xMax, out yMax);
+			return new Size(xMax - xMin, yMax - yMin);
 		}
 		#endregion
 
@@ -1911,6 +1857,15 @@ namespace Server
 					}
 				}
 			}
+		}
+
+		/// <summary>
+		///		If true the item should be considered an artifact
+		/// </summary>
+		[CommandProperty(AccessLevel.GameMaster)]
+		public virtual bool IsArtifact
+		{
+			get { return false; }
 		}
 
 		private static TimeSpan m_DDT = TimeSpan.FromHours(1.0);
@@ -4819,10 +4774,49 @@ namespace Server
 				return false;
 			}
 
+			Point3D dest = FindDropPoint(p, map, from.Z + 16);
+			if (dest == Point3D.Zero)
+				return false;
+
+			if (!from.InLOS(new Point3D(dest.X, dest.Y, dest.Z + 1)))
+			{
+				return false;
+			}
+
+			else if (!from.OnDroppedItemToWorld(this, dest))
+			{
+				return false;
+			}
+			else if (!OnDroppedToWorld(from, dest))
+			{
+				return false;
+			}
+
+			int soundID = GetDropSound();
+
+			MoveToWorld(dest, from.Map);
+
+			from.SendSound(soundID == -1 ? 0x42 : soundID, GetWorldLocation());
+
+			return true;
+		}
+
+		public bool DropToWorld(Point3D p, Map map)
+		{
+			Point3D dest = FindDropPoint(p, map, int.MaxValue);
+			if (dest == Point3D.Zero)
+				return false;
+			MoveToWorld(dest, map);
+			return true;
+		}
+
+		private Point3D FindDropPoint(Point3D p, Map map, int maxZ)
+		{
+			if (map == null)
+				return Point3D.Zero;
+
 			int x = p.m_X, y = p.m_Y;
 			int z = int.MinValue;
-
-			int maxZ = from.Z + 16;
 
 			LandTile landTile = map.Tiles.GetLandTile(x, y);
 			TileFlag landFlags = TileData.LandTable[landTile.ID & TileData.MaxLandValue].Flags;
@@ -4894,12 +4888,12 @@ namespace Server
 
 			if (z == int.MinValue)
 			{
-				return false;
+				return Point3D.Zero;
 			}
 
 			if (z > maxZ)
 			{
-				return false;
+				return Point3D.Zero;
 			}
 
 			m_OpenSlots = (1 << 20) - 1;
@@ -5011,7 +5005,7 @@ namespace Server
 
 			if (!okay)
 			{
-				return false;
+				return Point3D.Zero;
 			}
 
 			height = ItemData.Height;
@@ -5023,11 +5017,11 @@ namespace Server
 
 			if (landAvg > z && (z + height) > landZ)
 			{
-				return false;
+				return Point3D.Zero;
 			}
 			else if ((landFlags & TileFlag.Impassable) != 0 && landAvg > surfaceZ && (z + height) > landZ)
 			{
-				return false;
+				return Point3D.Zero;
 			}
 
 			for (int i = 0; i < tiles.Length; ++i)
@@ -5040,11 +5034,11 @@ namespace Server
 
 				if (checkTop > z && (z + height) > checkZ)
 				{
-					return false;
+					return Point3D.Zero;
 				}
 				else if ((id.Surface || id.Impassable) && checkTop > surfaceZ && (z + height) > checkZ)
 				{
-					return false;
+					return Point3D.Zero;
 				}
 			}
 
@@ -5053,37 +5047,13 @@ namespace Server
 				Item item = items[i];
 				ItemData id = item.ItemData;
 
-				//int checkZ = item.Z;
-				//int checkTop = checkZ + id.CalcHeight;
-
 				if ((item.Z + id.CalcHeight) > z && (z + height) > item.Z)
 				{
-					return false;
+					return Point3D.Zero;
 				}
 			}
 
-			p = new Point3D(x, y, z);
-
-			if (!from.InLOS(new Point3D(x, y, z + 1)))
-			{
-				return false;
-			}
-			else if (!from.OnDroppedItemToWorld(this, p))
-			{
-				return false;
-			}
-			else if (!OnDroppedToWorld(from, p))
-			{
-				return false;
-			}
-
-			int soundID = GetDropSound();
-
-			MoveToWorld(p, from.Map);
-
-			from.SendSound(soundID == -1 ? 0x42 : soundID, GetWorldLocation());
-
-			return true;
+			return new Point3D(x, y, z);
 		}
 
 		public void SendRemovePacket()

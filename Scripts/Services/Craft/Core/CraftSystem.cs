@@ -13,6 +13,8 @@ namespace Server.Engines.Craft
 
     public abstract class CraftSystem
     {
+        public static List<CraftSystem> Systems { get; set; }
+
         private readonly int m_MinCraftEffect;
         private readonly int m_MaxCraftEffect;
         private readonly double m_Delay;
@@ -115,6 +117,14 @@ namespace Server.Engines.Craft
             return false;
         }
 
+        public void AddContext(Mobile m, CraftContext c)
+        {
+            if (c == null || m == null || c.System != this)
+                return;
+
+            m_ContextTable[m] = c;
+        }
+
         public CraftContext GetContext(Mobile m)
         {
             if (m == null)
@@ -130,7 +140,7 @@ namespace Server.Engines.Craft
             this.m_ContextTable.TryGetValue(m, out c);
 
             if (c == null)
-                this.m_ContextTable[m] = c = new CraftContext();
+                this.m_ContextTable[m] = c = new CraftContext(m, this);
 
             return c;
         }
@@ -229,6 +239,15 @@ namespace Server.Engines.Craft
             this.m_CraftSubRes2 = new CraftSubResCol();
 
             this.InitCraftList();
+            AddSystem(this);
+        }
+
+        private void AddSystem(CraftSystem system)
+        {
+            if (Systems == null)
+                Systems = new List<CraftSystem>();
+
+            Systems.Add(system);
         }
 
         public virtual bool ConsumeOnFailure(Mobile from, Type resourceType, CraftItem craftItem)
@@ -320,7 +339,14 @@ namespace Server.Engines.Craft
             craftItem.UseAllRes = useAll;
         }
 
-        public void SetNeedHeat(int index, bool needHeat)
+		public void SetForceTypeRes(int index, bool value)
+		{
+			CraftItem craftItem = this.m_CraftItems.GetAt(index);
+			craftItem.ForceTypeRes = value;
+		}
+
+
+		public void SetNeedHeat(int index, bool needHeat)
         {
             CraftItem craftItem = this.m_CraftItems.GetAt(index);
             craftItem.NeedHeat = needHeat;
@@ -383,6 +409,12 @@ namespace Server.Engines.Craft
         {
             CraftItem craftItem = this.m_CraftItems.GetAt(index);
             craftItem.ForceNonExceptional = true;
+        }
+
+        public void SetMinSkillOffset(int index, double skillOffset)
+        {
+            CraftItem craftItem = this.m_CraftItems.GetAt(index);
+            craftItem.MinSkillOffset = skillOffset;
         }
 
         public void SetSubRes(Type type, string name)

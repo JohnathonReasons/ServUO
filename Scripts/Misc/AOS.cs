@@ -45,6 +45,11 @@ namespace Server
             return Damage(m, from, damage, false, phys, fire, cold, pois, nrgy, chaos, 0, false, false, false);
         }
 
+        public static int Damage(Mobile m, Mobile from, int damage, int phys, int fire, int cold, int pois, int nrgy, int chaos, int direct)
+        {
+            return Damage(m, from, damage, false, phys, fire, cold, pois, nrgy, chaos, direct, false, false, false);
+        }
+
         public static int Damage(Mobile m, Mobile from, int damage, bool ignoreArmor, int phys, int fire, int cold, int pois, int nrgy)
         {
             return Damage(m, from, damage, ignoreArmor, phys, fire, cold, pois, nrgy, 0, 0, false, false, false);
@@ -118,13 +123,13 @@ namespace Server
                 int energyDamage = damage * nrgy * (100 - m.EnergyResistance);
 
                 int[] amounts = new int[] { physDamage, fireDamage, coldDamage, poisonDamage, energyDamage };
-                DamageEater(m, amounts);
-                SoulCharge(m, amounts);
+                //DamageEater(m, amounts);
+                //SoulCharge(m, amounts);
 
                 totalDamage = physDamage + fireDamage + coldDamage + poisonDamage + energyDamage;
                 totalDamage /= 10000;
 
-                int soulcharge = AosArmorAttributes.GetValue(m, AosArmorAttribute.SoulCharge);
+                /*int soulcharge = AosArmorAttributes.GetValue(m, AosArmorAttribute.SoulCharge);
 
                 if (soulcharge > 0)
                 {
@@ -136,7 +141,7 @@ namespace Server
                         m.Mana -= soulcharge;
                         totalDamage -= soulcharge;
                     }
-                }
+                }*/
                 #endregion
 
                 if (Core.ML)
@@ -195,6 +200,17 @@ namespace Server
             }
             #endregion
 
+            #region Stygian Abyss
+            //SHould this go in after or before dragon barding absorb?
+            if (ignoreArmor)
+                DamageEaterContext.CheckDamage(m, totalDamage, 0, 0, 0, 0, 0, 100);
+            else
+                DamageEaterContext.CheckDamage(m, totalDamage, phys, fire, cold, pois, nrgy, direct);
+
+            if(totalDamage > 0)
+                Spells.Mystic.SpellPlagueSpell.OnMobileDamaged(m);
+            #endregion 
+
             if (keepAlive && totalDamage > m.Hits)
                 totalDamage = m.Hits;
 
@@ -217,16 +233,22 @@ namespace Server
                 }
             }
 
-            m.Damage(totalDamage, from);
+            m.Damage(totalDamage, from, true, false);
 
             #region Stygian Abyss
+            if (m.Spell != null)
+                ((Spell)m.Spell).CheckCasterDisruption(true, phys, fire, cold, pois, nrgy);
+
             BattleLust.IncreaseBattleLust(m, totalDamage);
+
+            if (ManaPhasingOrb.IsInManaPhase(m))
+                ManaPhasingOrb.RemoveFromTable(m);
             #endregion
 
             return totalDamage;
         }
 
-        public static void DamageEater(Mobile m, int[] damage)
+        /*public static void DamageEater(Mobile m, int[] damage)
         {
             int alleater = SAAbsorptionAttributes.GetValue(m, SAAbsorptionAttribute.EaterDamage);
             int toheal = 0, eater = 0;
@@ -271,9 +293,9 @@ namespace Server
                 m.SendLocalizedMessage(1113617); // Some of the damage you received has been converted to heal you.
                 m.Heal(toheal);
             }
-        }
+        }*/
 
-        public static void SoulCharge(Mobile m, int[] damage)
+        /*public static void SoulCharge(Mobile m, int[] damage)
         {
             int charge = 0, mana = 0;
 
@@ -312,7 +334,7 @@ namespace Server
                 m.SendLocalizedMessage(1113636); // The soul charge effect converts some of the damage you received into mana.
                 m.Mana += charge;
             }
-        }
+        }*/
 
         public static void Fix(ref int val)
         {
@@ -376,7 +398,9 @@ namespace Server
         Luck = 0x00100000,
         SpellChanneling = 0x00200000,
         NightSight = 0x00400000,
-        IncreasedKarmaLoss = 0x00800000
+        IncreasedKarmaLoss = 0x00800000,
+        Brittle = 0x01000000,
+        LowerAmmoCost = 0x02000000
     }
 
     public sealed class AosAttributes : BaseAttributes
@@ -467,40 +491,58 @@ namespace Server
                     if (attrs != null)
                         value += attrs[attribute];
                 }
-				
-                #region Mondain's Legacy
-                if (attribute == AosAttribute.WeaponDamage)
-                {
-                    if (BaseMagicalFood.IsUnderInfluence(m, MagicalFood.WrathGrapes))
-                        value += 10; // TODO check
-                }
-                else if (attribute == AosAttribute.SpellDamage)
-                {
-                    if (BaseMagicalFood.IsUnderInfluence(m, MagicalFood.WrathGrapes))
-                        value += 5; // TODO check
-                }
-                else if (attribute == AosAttribute.CastSpeed)
-                {
-                    if (MonstrousInterredGrizzle.UnderCacophonicAttack(m) || LadyMelisande.UnderPutridNausea(m))
-                        value -= 3; // TODO check
-                }
-                else if (attribute == AosAttribute.WeaponSpeed || LadyMelisande.UnderPutridNausea(m))
-                {
-                    if (MonstrousInterredGrizzle.UnderCacophonicAttack(m))
-                        value -= 3; // TODO check
-                }
 
                 if (obj is ISetItem)
-                { 
+                {
                     ISetItem item = (ISetItem)obj;
 
                     AosAttributes attrs = item.SetAttributes;
-										
+
                     if (attrs != null && item.LastEquipped)
                         value += attrs[attribute];
                 }
-                #endregion
             }
+
+            #region Malus/Buff Handler
+            if (attribute == AosAttribute.WeaponDamage)
+            {
+                if (BaseMagicalFood.IsUnderInfluence(m, MagicalFood.WrathGrapes))
+                    value += 10; // TODO check
+            }
+            else if (attribute == AosAttribute.SpellDamage)
+            {
+                if (BaseMagicalFood.IsUnderInfluence(m, MagicalFood.WrathGrapes))
+                    value += 5; // TODO check
+            }
+            else if (attribute == AosAttribute.CastSpeed)
+            {
+                if (MonstrousInterredGrizzle.UnderCacophonicAttack(m) || LadyMelisande.UnderPutridNausea(m))
+                    value -= 3; // TODO check
+            }
+            else if (attribute == AosAttribute.WeaponSpeed || LadyMelisande.UnderPutridNausea(m))
+            {
+                if (MonstrousInterredGrizzle.UnderCacophonicAttack(m))
+                    value -= 3; // TODO check
+            }
+            else if (attribute == AosAttribute.RegenHits)
+            {
+                if (SurgeShield.IsUnderEffects(m, SurgeType.Hits))
+                    value += 10;
+
+                if (SearingWeaponContext.HasContext(m))
+                    value -= m is PlayerMobile ? 20 : 60;
+            }
+            else if (attribute == AosAttribute.RegenStam)
+            {
+                if (SurgeShield.IsUnderEffects(m, SurgeType.Stam))
+                    value += 10;
+            }
+            else if (attribute == AosAttribute.RegenMana)
+            {
+                if (SurgeShield.IsUnderEffects(m, SurgeType.Mana))
+                    value += 10;
+            }
+            #endregion
 
             return value;
         }
@@ -881,10 +923,36 @@ namespace Server
                 this[AosAttribute.IncreasedKarmaLoss] = value;
             }
         }
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public int Brittle
+        {
+            get
+            {
+                return this[AosAttribute.Brittle];
+            }
+            set
+            {
+                this[AosAttribute.Brittle] = value;
+            }
+        }
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public int LowerAmmoCost
+        {
+            get
+            {
+                return this[AosAttribute.LowerAmmoCost];
+            }
+            set
+            {
+                this[AosAttribute.LowerAmmoCost] = value;
+            }
+        }
     }
 
     [Flags]
-    public enum AosWeaponAttribute
+    public enum AosWeaponAttribute : long
     {
         LowerStatReq = 0x00000001,
         SelfRepair = 0x00000002,
@@ -916,7 +984,9 @@ namespace Server
         BattleLust = 0x04000000,
         HitCurse = 0x08000000,
         HitFatigue = 0x10000000,
-        HitManaDrain = 0x20000000
+        HitManaDrain = 0x20000000,
+        SplinteringWeapon = 0x40000000,
+        ReactiveParalyze = 0x80000000,
         #endregion
     }
 
@@ -1393,6 +1463,32 @@ namespace Server
             set
             {
                 this[AosWeaponAttribute.HitManaDrain] = value;
+            }
+        }
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public int SplinteringWeapon
+        {
+            get
+            {
+                return this[AosWeaponAttribute.SplinteringWeapon];
+            }
+            set
+            {
+                this[AosWeaponAttribute.SplinteringWeapon] = value;
+            }
+        }
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public int ReactiveParalyze
+        {
+            get
+            {
+                return this[AosWeaponAttribute.ReactiveParalyze];
+            }
+            set
+            {
+                this[AosWeaponAttribute.ReactiveParalyze] = value;
             }
         }
         #endregion
@@ -1970,21 +2066,21 @@ namespace Server
             {
                 Item obj = items[i];
 
-                /*if ( obj is BaseArmor )
+                if (obj is BaseArmor)
                 {
-                SAAbsorptionAttributes attrs = ((BaseArmor)obj).AbsorptionAttributes;
-
-                if ( attrs != null )
-                value += attrs[attribute];
-                }
-                else */
-                if (obj is BaseWeapon)
-                {
-                    SAAbsorptionAttributes attrs = ((BaseWeapon)obj).AbsorptionAttributes;
+                    SAAbsorptionAttributes attrs = ((BaseArmor)obj).AbsorptionAttributes;
 
                     if (attrs != null)
                         value += attrs[attribute];
                 }
+                else
+                    if (obj is BaseWeapon)
+                    {
+                        SAAbsorptionAttributes attrs = ((BaseWeapon)obj).AbsorptionAttributes;
+
+                        if (attrs != null)
+                            value += attrs[attribute];
+                    }
             }
 
             return value;
@@ -2380,6 +2476,89 @@ namespace Server
                 this[AosElementAttribute.Direct] = value;
             }
         }
+    }
+
+    [Flags]
+    public enum NegativeAttribute
+    {
+        Brittle = 0x00000001,
+        Prized = 0x00000002,
+        Massive = 0x00000004,
+        Unwieldly = 0x00000008,
+        Antique = 0x00000010,
+        NoRepair = 0x00000020
+    }
+
+    public sealed class NegativeAttributes : BaseAttributes
+    {
+        public NegativeAttributes(Item owner)
+            : base(owner)
+        {
+        }
+
+        public NegativeAttributes(Item owner, NegativeAttributes other)
+            : base(owner, other)
+        {
+        }
+
+        public NegativeAttributes(Item owner, GenericReader reader)
+            : base(owner, reader)
+        {
+        }
+
+        public void GetProperties(ObjectPropertyList list, Item item)
+        {
+            if (Brittle > 0 ||
+                item is BaseWeapon && ((BaseWeapon)item).Attributes.Brittle > 0 ||
+                item is BaseArmor && ((BaseArmor)item).Attributes.Brittle > 0 ||
+                item is BaseJewel && ((BaseJewel)item).Attributes.Brittle > 0 ||
+                item is BaseClothing && ((BaseClothing)item).Attributes.Brittle > 0)
+                list.Add(1116209);
+
+            if (Prized > 0)
+                list.Add(1154910);
+
+            if (Massive > 0)
+                list.Add(1038003);
+
+            if (Unwieldly > 0)
+                list.Add(1154909);
+
+            if (Antique > 0)
+                list.Add(1076187);
+
+            if (NoRepair > 0)
+                list.Add(1151782);
+        }
+
+        public int this[NegativeAttribute attribute]
+        {
+            get { return GetValue((int)attribute); }
+            set { SetValue((int)attribute, value); }
+        }
+
+        public override string ToString()
+        {
+            return "...";
+        }
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public int Brittle { get { return this[NegativeAttribute.Brittle]; } set { this[NegativeAttribute.Brittle] = value; } }
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public int Prized { get { return this[NegativeAttribute.Prized]; } set { this[NegativeAttribute.Prized] = value; } }
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public int Massive { get { return this[NegativeAttribute.Massive]; } set { this[NegativeAttribute.Massive] = value; } }
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public int Unwieldly { get { return this[NegativeAttribute.Unwieldly]; } set { this[NegativeAttribute.Unwieldly] = value; } }
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public int Antique { get { return this[NegativeAttribute.Antique]; } set { this[NegativeAttribute.Antique] = value; } }
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public int NoRepair { get { return this[NegativeAttribute.NoRepair]; } set { this[NegativeAttribute.NoRepair] = value; } }
     }
 
     [PropertyObject]

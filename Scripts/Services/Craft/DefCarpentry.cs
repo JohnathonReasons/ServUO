@@ -129,6 +129,7 @@ namespace Server.Engines.Craft
             {
                 index = this.AddCraft(typeof(Board), 1044294, 1027127, 0.0, 0.0, typeof(Log), 1044466, 1, 1044465);
                 this.SetUseAllRes(index, true);
+				this.SetForceTypeRes(index, true);
             }
 
             this.AddCraft(typeof(BarrelStaves), 1044294, 1027857, 00.0, 25.0, typeof(Board), 1044041, 5, 1044351);
@@ -227,7 +228,7 @@ namespace Server.Engines.Craft
                 this.AddSkill(index, SkillName.Tailoring, 75.0, 105.0);
                 this.AddRes(index, typeof(Cloth), 1044286, 50, 1044287);
                 this.SetNeededExpansion(index, Expansion.SA);
-            }            
+            }         
             #endregion
 
             // Furniture
@@ -377,11 +378,11 @@ namespace Server.Engines.Craft
                 this.ForceNonExceptional(index);
                 this.SetNeededExpansion(index, Expansion.ML);
 
-                index = this.AddCraft(typeof(ElvenWashBasinSouthDeed), 1044292, 1072865, 70.0, 95.0, typeof(Board), 1044041, 40, 1044351);
+                index = this.AddCraft(typeof(ElvenWashBasinSouthWithDrawerDeed), 1044292, 1072865, 70.0, 95.0, typeof(Board), 1044041, 40, 1044351);
                 this.ForceNonExceptional(index);
                 this.SetNeededExpansion(index, Expansion.ML);
 
-                index = this.AddCraft(typeof(ElvenWashBasinEastDeed), 1044292, 1073387, 70.0, 95.0, typeof(Board), 1044041, 40, 1044351);
+                index = this.AddCraft(typeof(ElvenWashBasinEastWithDrawerDeed), 1044292, 1073387, 70.0, 95.0, typeof(Board), 1044041, 40, 1044351);
                 this.ForceNonExceptional(index);
                 this.SetNeededExpansion(index, Expansion.ML);
 
@@ -413,27 +414,27 @@ namespace Server.Engines.Craft
             #endregion
 
             // Staves and Shields
-            this.AddCraft(typeof(ShepherdsCrook), 1044295, 1023713, 78.9, 103.9, typeof(Board), 1044041, 7, 1044351);
-            this.AddCraft(typeof(QuarterStaff), 1044295, 1023721, 73.6, 98.6, typeof(Board), 1044041, 6, 1044351);
-            this.AddCraft(typeof(GnarledStaff), 1044295, 1025112, 78.9, 103.9, typeof(Board), 1044041, 7, 1044351);
-            this.AddCraft(typeof(WoodenShield), 1044295, 1027034, 52.6, 77.6, typeof(Board), 1044041, 9, 1044351);
+            this.AddCraft(typeof(ShepherdsCrook), 1044566, 1023713, 78.9, 103.9, typeof(Board), 1044041, 7, 1044351);
+            this.AddCraft(typeof(QuarterStaff), 1044566, 1023721, 73.6, 98.6, typeof(Board), 1044041, 6, 1044351);
+            this.AddCraft(typeof(GnarledStaff), 1044566, 1025112, 78.9, 103.9, typeof(Board), 1044041, 7, 1044351);
+            this.AddCraft(typeof(WoodenShield), 1062760, 1027034, 52.6, 77.6, typeof(Board), 1044041, 9, 1044351);
 
             if (!Core.AOS)	//Duplicate Entries to preserve ordering depending on era
             {
-                index = this.AddCraft(typeof(FishingPole), 1044295, 1023519, 68.4, 93.4, typeof(Board), 1044041, 5, 1044351); //This is in the categor of Other during AoS
+                index = this.AddCraft(typeof(FishingPole), 1044566, 1023519, 68.4, 93.4, typeof(Board), 1044041, 5, 1044351); //This is in the categor of Other during AoS
                 this.AddSkill(index, SkillName.Tailoring, 40.0, 45.0);
                 this.AddRes(index, typeof(Cloth), 1044286, 5, 1044287);
             }
 
             if (Core.SE)
             {
-                index = this.AddCraft(typeof(Bokuto), 1044295, 1030227, 70.0, 95.0, typeof(Board), 1044041, 6, 1044351);
+                index = this.AddCraft(typeof(Bokuto), 1044566, 1030227, 70.0, 95.0, typeof(Board), 1044041, 6, 1044351);
                 this.SetNeededExpansion(index, Expansion.SE);
 
-                index = this.AddCraft(typeof(Fukiya), 1044295, 1030229, 60.0, 85.0, typeof(Board), 1044041, 6, 1044351);
+                index = this.AddCraft(typeof(Fukiya), 1044566, 1030229, 60.0, 85.0, typeof(Board), 1044041, 6, 1044351);
                 this.SetNeededExpansion(index, Expansion.SE);
 
-                index = this.AddCraft(typeof(Tetsubo), 1044295, 1030225, 80.0, 140.3, typeof(Board), 1044041, 10, 1044351);
+                index = this.AddCraft(typeof(Tetsubo), 1044566, 1030225, 80.0, 140.3, typeof(Board), 1044041, 10, 1044351);
                 this.SetNeededExpansion(index, Expansion.SE);
             }
 
@@ -615,7 +616,7 @@ namespace Server.Engines.Craft
                 this.ForceNonExceptional(index);
                 this.SetNeededExpansion(index, Expansion.ML);
 
-                index = this.AddCraft(typeof(TallElvenBedSouthDeed), 1044290, 1072858, 94.7, 119.7, typeof(Board), 1044041, 200, 1044351);
+				index = this.AddCraft(typeof(TallElvenBedSouthDeed), 1044290, 1072858, 94.7, 119.7, typeof(Board), 1044041, 200, 1044351);
                 this.AddSkill(index, SkillName.Tailoring, 75.0, 80.0);
                 this.AddRes(index, typeof(Cloth), 1044286, 100, 1044287);
                 this.AddRecipe(index, (int)CarpRecipes.TallElvenBedSouth);
@@ -654,6 +655,13 @@ namespace Server.Engines.Craft
                 index = this.AddCraft(typeof(AlchemistTableEastDeed), 1044290, 1074903, 85.0, 110.0, typeof(Board), 1044041, 70, 1044351);
                 this.ForceNonExceptional(index);
                 this.SetNeededExpansion(index, Expansion.ML);
+
+                index = this.AddCraft(typeof(SoulForgeDeed), 1044290, 1031696 , 100.0, 200.0, typeof(Board), 1044041, 150, 1044351);
+                this.AddSkill(index, SkillName.Imbuing, 75.0, 80.0);
+        	    this.AddRes(index, typeof(IronIngot), 1044036, 150, 1044037);
+                this.AddRes(index, typeof(RelicFragment), 1031699, 1, 1044253);
+                this.ForceNonExceptional(index);
+                this.SetNeededExpansion(index, Expansion.SA);
             }
             #endregion
 

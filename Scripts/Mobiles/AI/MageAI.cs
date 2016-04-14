@@ -313,6 +313,11 @@ namespace Server.Mobiles
             return new ManaDrainSpell(this.m_Mobile, null);
         }
 
+        public virtual Spell GetRandomBuffSpell()
+        {
+            return new BlessSpell(m_Mobile, null);
+        }
+
         public virtual Spell DoDispel(Mobile toDispel)
         {
             if (!this.SmartAI)
@@ -357,7 +362,7 @@ namespace Server.Mobiles
                         return new PainSpikeSpell(this.m_Mobile, null);
                 }
 
-                switch (Utility.Random(16))
+                switch (Utility.Random(15))
                 {
                     case 0:
                     case 1:	// Poison them
@@ -374,7 +379,7 @@ namespace Server.Mobiles
                         {
                             this.m_Mobile.DebugSay("Blessing myself");
 
-                            spell = new BlessSpell(this.m_Mobile, null);
+                            spell = GetRandomBuffSpell();//new BlessSpell(this.m_Mobile, null);
                             break;
                         }
                     case 3:
@@ -400,16 +405,6 @@ namespace Server.Mobiles
                             this.m_Mobile.DebugSay("Attempting to drain mana");
 
                             spell = this.GetRandomManaDrainSpell();
-                            break;
-                        }
-                    case 7: // Invis ourselves
-                        {
-                            if (Utility.RandomBool())
-                                goto default;
-
-                            this.m_Mobile.DebugSay("Attempting to invis myself");
-
-                            spell = new InvisibilitySpell(this.m_Mobile, null);
                             break;
                         }
                     default: // Damage them
@@ -897,7 +892,7 @@ namespace Server.Mobiles
             return (m is BaseCreature && ((BaseCreature)m).Summoned && this.m_Mobile.CanBeHarmful(m, false) && !((BaseCreature)m).IsAnimatedDead);
         }
 
-        private Spell CheckCastHealingSpell()
+        protected Spell CheckCastHealingSpell()
         {
             // If I'm poisoned, always attempt to cure.
             if (this.m_Mobile.Poisoned)
@@ -973,7 +968,7 @@ namespace Server.Mobiles
             }
         }
 
-        private bool ProcessTarget()
+        protected virtual bool ProcessTarget()
         {
             Target targ = this.m_Mobile.Target;
 

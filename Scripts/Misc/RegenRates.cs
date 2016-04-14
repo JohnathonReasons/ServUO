@@ -6,8 +6,6 @@ using Server.Spells;
 using Server.Spells.Necromancy;
 using Server.Spells.Ninjitsu;
 
-using CustomsFramework.Systems.FoodEffects;
-
 namespace Server.Misc
 {
     public delegate Int32 RegenBonusHandler(Mobile from);
@@ -182,6 +180,9 @@ namespace Server.Misc
                     cappedPoints = Math.Min(cappedPoints, 18);
 
                 totalPoints += cappedPoints;
+
+				if (from is PlayerMobile && ((PlayerMobile)from).Race == Race.Gargoyle)
+					totalPoints += 2;
 
                 if (totalPoints < -1)
                     totalPoints = -1;

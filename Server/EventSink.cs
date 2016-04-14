@@ -113,6 +113,15 @@ namespace Server
 
 	public delegate void OnPropertyChangedEventHandler(OnPropertyChangedEventArgs e);
 
+	public delegate void BODUsedEventHandler(BODUsedEventArgs e);
+
+	public delegate void BODOfferEventHandler(BODOfferEventArgs e);
+
+	public delegate void ResourceHarvestAttemptEventHandler(ResourceHarvestAttemptEventArgs e);
+
+	public delegate void ResourceHarvestSuccessEventHandler(ResourceHarvestSuccessEventArgs e);
+
+
 	public class ClientVersionReceivedArgs : EventArgs
 	{
 		private readonly NetState m_State;
@@ -324,6 +333,7 @@ namespace Server
 			m_State = state;
 			m_Username = username;
 			m_Password = password;
+			Accepted = true;
 		}
 	}
 
@@ -945,6 +955,60 @@ namespace Server
 		}
 	}
 
+	public class BODUsedEventArgs : EventArgs
+	{
+		public Mobile User { get; private set; }
+		public Item BODItem { get; private set; }
+
+		public BODUsedEventArgs(Mobile m, Item i)
+		{
+			User = m;
+			BODItem = i;
+		}
+	}
+
+	public class BODOfferEventArgs : EventArgs
+	{
+		public Mobile Player { get; private set; }
+		public Mobile Vendor { get; private set; }
+
+		public BODOfferEventArgs(Mobile p, Mobile v)
+		{
+			Player = p;
+			Vendor = v;
+		}
+	}
+
+	public class ResourceHarvestAttemptEventArgs : EventArgs
+	{
+		public Mobile Harvester { get; private set; }
+		public Item Tool { get; private set; }
+		public object HarvestSystem { get; private set; }
+
+		public ResourceHarvestAttemptEventArgs(Mobile m, Item i, object o)
+		{
+			Harvester = m;
+			Tool = i;
+			HarvestSystem = o;
+		}
+	}
+
+	public class ResourceHarvestSuccessEventArgs : EventArgs
+	{
+		public Mobile Harvester { get; private set; }
+		public Item Tool { get; private set; }
+		public Item Resource { get; private set; }
+		public object HarvestSystem { get; private set; }
+
+		public ResourceHarvestSuccessEventArgs(Mobile m, Item i, Item r, object o)
+		{
+			Harvester = m;
+			Tool = i;
+			Resource = r;
+			HarvestSystem = o;
+		}
+	}
+
 	public static class EventSink
 	{
 		public static event CharacterCreatedEventHandler CharacterCreated;
@@ -995,6 +1059,10 @@ namespace Server
 		public static event OnEnterRegionEventHandler OnEnterRegion;
 		public static event OnConsumeEventHandler OnConsume;
 		public static event OnPropertyChangedEventHandler OnPropertyChanged;
+		public static event BODUsedEventHandler BODUsed;
+		public static event BODOfferEventHandler BODOffered;
+		public static event ResourceHarvestAttemptEventHandler ResourceHarvestAttempt;
+		public static event ResourceHarvestSuccessEventHandler ResourceHarvestSuccess;
 
 		/* The following is a .NET 2.0 "Generic EventHandler" implementation.
 		 * It is a breaking change; we would have to refactor all event handlers.
@@ -1432,6 +1500,38 @@ namespace Server
 			}
 		}
 
+		public static void InvokeBODUsed(BODUsedEventArgs e)
+		{
+			if(BODUsed != null)
+			{
+				BODUsed(e);
+			}
+		}
+
+		public static void InvokeBODOffered(BODOfferEventArgs e)
+		{
+			if(BODOffered != null)
+			{
+				BODOffered(e);
+			}
+		}
+
+		public static void InvokeResourceHarvestAttempt(ResourceHarvestAttemptEventArgs e)
+		{
+			if(ResourceHarvestAttempt != null)
+			{
+				ResourceHarvestAttempt(e);
+			}
+		}
+
+		public static void InvokeResourceHarvestSuccess(ResourceHarvestSuccessEventArgs e)
+		{
+			if (ResourceHarvestSuccess != null)
+			{
+				ResourceHarvestSuccess(e);
+			}
+		}
+
 		public static void Reset()
 		{
 			CharacterCreated = null;
@@ -1478,6 +1578,10 @@ namespace Server
 			OnEnterRegion = null;
 			OnConsume = null;
 			OnPropertyChanged = null;
+			BODUsed = null;
+			BODOffered = null;
+			ResourceHarvestAttempt = null;
+			ResourceHarvestSuccess = null;
 		}
 	}
 }
